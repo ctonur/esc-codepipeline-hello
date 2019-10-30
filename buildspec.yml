@@ -1,0 +1,46 @@
+# This requires the following environment variables be set on the Project:
+# AWS_DEFAULT_REGION (Supplied by CodeBuild)
+# AWS_ACCOUNT_ID
+# IMAGE_REPO_NAME
+# IMAGE_TAG
+
+version: 0.2
+
+env:
+  variables:
+    AWS_DEFAULT_REGION: "eu-central-1"
+    AWS_ACCOUNT_ID: "562151409629"
+    IMAGE_REPO_NAME: "test"
+    IMAGE_TAG: "latest"
+  
+phases:
+  install:
+    runtime-versions:
+        docker: 18		
+      # - nohup /usr/local/bin/dockerd --host=unix:///var/run/docker.sock --host=tcp://127.0.0.1:2375 --storage-driver=overlay2&		
+      # - timeout 15 sh -c "until docker info; do echo .; sleep 1; done"  
+       
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - $(aws ecr get-login --no-include-email --region eu-central-1)
+      - CODEBUILD_RESOLVED_SOURCE_VERSION="${CODEBUILD_RESOLVED_SOURCE_VERSION:-$IMAGE_TAG}"
+      - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      #- IMAGE_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG"
+      - IMAGE_URI="562151409629.dkr.ecr.eu-central-1.amazonaws.com/test:latest"
+
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the Docker image...
+     # - docker build -t $IMAGE_URI .
+      - docker build -t 562151409629.dkr.ecr.eu-central-1.amazonaws.com/test:latest .               
+  post_build:
+    commands:
+      - bash -c "if [ /"$CODEBUILD_BUILD_SUCCEEDING/" == /"0/" ]; then exit 1; fi"
+      - echo Build stage successfully completed on `date`
+      - echo Pushing the Docker image...
+      - docker push $IMAGE_URI
+      - printf '[{"name":"nginx","imageUri":"%s"}]' "$IMAGE_URI" > imagedefinitions.json
+artifacts:
+  files: imagedefinitions.json
